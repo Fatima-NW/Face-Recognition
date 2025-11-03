@@ -48,7 +48,8 @@ for person_name in os.listdir(known_dir):
         encodings = face_recognition.face_encodings(image)
 
         if len(encodings) > 0:
-            emb = encodings[0].tolist()
+            emb = np.array(encodings[0], dtype=np.float32).tolist()
+            # emb = encodings[0].tolist()
             embeddings.append(emb)
             ids.append(img_id)
             metadatas.append({
@@ -107,7 +108,6 @@ print(f"Detected {len(face_encodings)} faces in test image.")
 threshold = 0.45
 
 for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
-    # Calculate distances to all known faces
     if known_encodings:
         distances = face_recognition.face_distance(known_encodings, face_encoding)
         best_match_index = np.argmin(distances)
