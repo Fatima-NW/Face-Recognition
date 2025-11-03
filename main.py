@@ -7,6 +7,26 @@ import time
 import gradio as gr
 
 
+THRESHOLD = 0.45
+
+# DB helper
+def init_face_db(known_dir="known_faces", db_path="face_db", collection_name="face_embeddings"):
+    """Initialize ChromaDB"""
+    chroma_client = chromadb.PersistentClient(path=db_path)
+    collection = chroma_client.get_or_create_collection(name=collection_name)
+
+    from_existing = load_existing_encodings(collection)
+    known_encodings, known_names, known_files = add_new_faces_to_db(
+        collection, known_dir, *from_existing
+    )
+    known_encodings, known_names, known_files = remove_deleted_faces_from_db(
+        collection, known_dir, known_encodings, known_names, known_files
+    )
+
+    print(f"Total known encodings: {len(known_encodings)}")
+    return known_encodings, known_names, known_files
+
+
 # Load known encodings
 def load_existing_encodings(collection):
     """Load known encodings and metadata from ChromaDB."""
@@ -97,68 +117,83 @@ def remove_deleted_faces_from_db(collection, known_dir, known_encodings, known_n
     return known_encodings, known_names, known_files
 
 
-# Detect faces
-def recognize_faces(image, known_encodings, known_names, known_files, threshold=0.46):
-    """Recognize faces from Gradio-uploaded image."""
-    start_time = time.time()
-    test_image = image
-    # test_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    face_locations = face_recognition.face_locations(test_image)
-    face_encodings = face_recognition.face_encodings(test_image, face_locations)
+# Detection function
+def recognize_faces(image, known_encodings, known_names, known_files, threshold=THRESHOLD):
+    """Core logic for face detection and recognition"""
+    # Convert to RGB if needed
+    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) if image.shape[2] == 3 else image.copy()
+    face_locations = face_recognition.face_locations(image_rgb)
+    face_encodings = face_recognition.face_encodings(image_rgb, face_locations)
 
     recognized_info = []
 
     for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
         if known_encodings:
             distances = face_recognition.face_distance(known_encodings, face_encoding)
-            best_match_index = np.argmin(distances)
-            best_distance = distances[best_match_index]
-
-            if best_distance < threshold:
-                name = known_names[best_match_index]
-            else:
-                name = "Unknown"
-
-            matched_file = known_files[best_match_index]
+            best_idx = np.argmin(distances)
+            best_distance = distances[best_idx]
+            name = known_names[best_idx] if best_distance < threshold else "Unknown"
+            matched_file = known_files[best_idx]
             recognized_info.append(f"{name} (distance={best_distance:.2f}, matched file={matched_file})")
         else:
             name = "Unknown"
             recognized_info.append("No known faces to compare")
 
+        # Draw rectangles and labels
         cv2.rectangle(image, (left, top), (right, bottom), (0, 255, 0), 2)
         text_y = bottom + 25
         cv2.rectangle(image, (left, bottom), (right, text_y), (0, 255, 0), cv2.FILLED)
-        cv2.putText(image, name, (left + 5, bottom + 18),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+        cv2.putText(image, name, (left + 5, bottom + 18), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
 
+    return image, recognized_info
+
+
+# OpenVC wrapper
+def recognize_faces_opencv(test_image_path, known_encodings, known_names, known_files):
+    start_time = time.time()
+    image = face_recognition.load_image_file(test_image_path)
+    image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    annotated_image, recognized_info = recognize_faces(image_bgr, known_encodings, known_names, known_files)
+    runtime = time.time() - start_time
+    for info in recognized_info:
+        print(info)
+    print(f"Runtime: {runtime:.2f} seconds")
+    cv2.imshow("Face Recognition", annotated_image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+
+# Gradio wrapper
+def recognize_faces_gradio(image, threshold, known_encodings, known_names, known_files):
+    start_time = time.time()
+    annotated_image, recognized_info = recognize_faces(image, known_encodings, known_names, known_files, threshold)
     runtime = time.time() - start_time
     recognized_text = "\n".join(recognized_info) + f"\nRuntime: {runtime:.2f} seconds"
-
-    return image, recognized_text
-
+    return annotated_image, recognized_text
 
 # Launch Gradio UI
-def launch_gradio_ui():
-    chroma_client = chromadb.PersistentClient(path="face_db")
-    collection = chroma_client.get_or_create_collection(name="face_embeddings")
-    known_dir = "known_faces"
-
-    known_encodings, known_names, known_files = load_existing_encodings(collection)
-    known_encodings, known_names, known_files = add_new_faces_to_db(
-        collection, known_dir, known_encodings, known_names, known_files
-    )
-    known_encodings, known_names, known_files = remove_deleted_faces_from_db(
-        collection, known_dir, known_encodings, known_names, known_files
-    )
-
+def launch_gradio_ui(known_encodings, known_names, known_files):
     iface = gr.Interface(
-        fn=lambda img: recognize_faces(img, known_encodings, known_names, known_files),
-        inputs=gr.Image(type="numpy"),
-        outputs=[gr.Image(type="numpy"), gr.Text()],
+        fn=lambda img, th: recognize_faces_gradio(img, th, known_encodings, known_names, known_files),
+        inputs=[
+            gr.Image(type="numpy"),
+            gr.Slider(0.42, 1.0, value=THRESHOLD, step=0.01, label="Recognition Threshold") 
+        ],
+        outputs=[
+            gr.Image(type="numpy"),
+            gr.Textbox(lines=8, label="Recognition Results", interactive=False) 
+        ],
         title="Face Recognition App"
     )
     iface.launch()
 
 
 if __name__ == "__main__":
-    launch_gradio_ui()
+    known_encodings, known_names, known_files = init_face_db(known_dir="known_faces")
+
+    # OpenCV test
+    test_image_path = "test_images/group2.jpg"
+    recognize_faces_opencv(test_image_path, known_encodings, known_names, known_files)
+
+    # Launch Gradio UI
+    launch_gradio_ui(known_encodings, known_names, known_files)
