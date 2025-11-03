@@ -4,6 +4,7 @@ import os
 import numpy as np
 import chromadb
 import time
+import gradio as gr
 
 
 # Load known encodings
@@ -17,9 +18,9 @@ def load_existing_encodings(collection):
             known_encodings.append(np.array(emb))
             known_names.append(meta["name"])
             known_files.append(meta["file"])
-        print(f"Loaded {len(known_encodings)} encodings from ChromaDB.")
+        print(f"Loaded {len(known_encodings)} encodings from ChromaDB")
     else:
-        print("No existing data found in DB.")
+        print("No existing data found in DB")
 
     return known_encodings, known_names, known_files
 
@@ -63,7 +64,7 @@ def add_new_faces_to_db(collection, known_dir, known_encodings, known_names, kno
 
     if embeddings:
         collection.add(ids=ids, embeddings=embeddings, metadatas=metadatas)
-        print(f"Stored {len(embeddings)} new encodings in ChromaDB.")
+        print(f"Stored {len(embeddings)} new encodings in ChromaDB")
 
     return known_encodings, known_names, known_files
 
@@ -86,7 +87,7 @@ def remove_deleted_faces_from_db(collection, known_dir, known_encodings, known_n
     to_delete = list(existing_ids - current_ids)
     if to_delete:
         collection.delete(ids=to_delete)
-        print(f"Removed {len(to_delete)} embeddings from DB (no longer in folder).")
+        print(f"Removed {len(to_delete)} embeddings from DB")
 
         data = collection.get(include=["embeddings", "metadatas"])
         known_encodings = [np.array(e) for e in data["embeddings"]]
@@ -97,14 +98,15 @@ def remove_deleted_faces_from_db(collection, known_dir, known_encodings, known_n
 
 
 # Detect faces
-def recognize_faces(test_image_path, known_encodings, known_names, known_files, threshold=0.45):
-    """Recognize faces in the test image."""
-    test_image = face_recognition.load_image_file(test_image_path)
-    test_image_bgr = cv2.cvtColor(test_image, cv2.COLOR_RGB2BGR)
+def recognize_faces(image, known_encodings, known_names, known_files, threshold=0.46):
+    """Recognize faces from Gradio-uploaded image."""
+    start_time = time.time()
+    test_image = image
+    # test_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     face_locations = face_recognition.face_locations(test_image)
     face_encodings = face_recognition.face_encodings(test_image, face_locations)
 
-    print(f"Detected {len(face_encodings)} faces in test image.")
+    recognized_info = []
 
     for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
         if known_encodings:
@@ -118,29 +120,27 @@ def recognize_faces(test_image_path, known_encodings, known_names, known_files, 
                 name = "Unknown"
 
             matched_file = known_files[best_match_index]
-            print(f"Found: {name} (distance={best_distance:.2f}, matched file={matched_file})")
+            recognized_info.append(f"{name} (distance={best_distance:.2f}, matched file={matched_file})")
         else:
             name = "Unknown"
-            print("No known faces to compare.")
+            recognized_info.append("No known faces to compare")
 
-        # Draw results
-        cv2.rectangle(test_image_bgr, (left, top), (right, bottom), (0, 255, 0), 2)
+        cv2.rectangle(image, (left, top), (right, bottom), (0, 255, 0), 2)
         text_y = bottom + 25
-        cv2.rectangle(test_image_bgr, (left, bottom), (right, text_y), (0, 255, 0), cv2.FILLED)
-        cv2.putText(test_image_bgr, name, (left + 5, bottom + 18),
+        cv2.rectangle(image, (left, bottom), (right, text_y), (0, 255, 0), cv2.FILLED)
+        cv2.putText(image, name, (left + 5, bottom + 18),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
 
-    cv2.imshow("Face Recognition", test_image_bgr)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    runtime = time.time() - start_time
+    recognized_text = "\n".join(recognized_info) + f"\nRuntime: {runtime:.2f} seconds"
+
+    return image, recognized_text
 
 
-def main():
-    start_time = time.time()
-
+# Launch Gradio UI
+def launch_gradio_ui():
     chroma_client = chromadb.PersistentClient(path="face_db")
     collection = chroma_client.get_or_create_collection(name="face_embeddings")
-
     known_dir = "known_faces"
 
     known_encodings, known_names, known_files = load_existing_encodings(collection)
@@ -151,14 +151,14 @@ def main():
         collection, known_dir, known_encodings, known_names, known_files
     )
 
-    print(f"Total known encodings: {len(known_encodings)}")
-
-    test_image_path = "test_images/group2.jpg"
-    recognize_faces(test_image_path, known_encodings, known_names, known_files)
-
-    end_time = time.time()
-    print(f"\nTotal runtime: {end_time - start_time:.2f} seconds")
+    iface = gr.Interface(
+        fn=lambda img: recognize_faces(img, known_encodings, known_names, known_files),
+        inputs=gr.Image(type="numpy"),
+        outputs=[gr.Image(type="numpy"), gr.Text()],
+        title="Face Recognition App"
+    )
+    iface.launch()
 
 
 if __name__ == "__main__":
-    main()
+    launch_gradio_ui()
