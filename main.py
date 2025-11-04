@@ -118,10 +118,17 @@ def remove_deleted_faces_from_db(collection, known_dir, known_encodings, known_n
 
 
 # Detection function
-def recognize_faces(image, known_encodings, known_names, known_files, threshold=THRESHOLD):
+def recognize_faces(image, known_encodings, known_names, known_files, threshold=THRESHOLD, for_gradio=False):
     """Core logic for face detection and recognition"""
-    # Convert to RGB if needed
-    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) if image.shape[2] == 3 else image.copy()
+   
+    # Convert for recognition
+    if for_gradio:
+        image_rgb = image.copy()      # already RGB
+        color_unknown = (255, 0, 0)   # RGB red
+    else:
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        color_unknown = (0, 0, 255)   # BGR red
+
     face_locations = face_recognition.face_locations(image_rgb)
     face_encodings = face_recognition.face_encodings(image_rgb, face_locations)
 
@@ -141,7 +148,7 @@ def recognize_faces(image, known_encodings, known_names, known_files, threshold=
             recognized_info.append("No known faces to compare")
 
         # Draw rectangles and labels
-        colour = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
+        colour = (0, 200, 0) if name != "Unknown" else color_unknown
         cv2.rectangle(image, (left, top), (right, bottom), colour, 2)
 
         if name != "Unknown":
@@ -175,7 +182,7 @@ def recognize_faces_opencv(test_image_path, known_encodings, known_names, known_
 # Gradio wrapper
 def recognize_faces_gradio(image, threshold, known_encodings, known_names, known_files):
     start_time = time.time()
-    annotated_image, recognized_info = recognize_faces(image, known_encodings, known_names, known_files, threshold)
+    annotated_image, recognized_info = recognize_faces(image, known_encodings, known_names, known_files, threshold, for_gradio=True)
     runtime = time.time() - start_time
     recognized_text = "\n".join(recognized_info) + f"\nRuntime: {runtime:.2f} seconds"
     return annotated_image, recognized_text
