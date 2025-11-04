@@ -9,9 +9,28 @@ import gradio as gr
 
 THRESHOLD = 0.45
 
-# DB helper
+
+def average_person_embeddings(known_encodings, known_names, known_files):
+    """ Compute average embeddings for each person """
+    averaged_encodings = []
+    averaged_names = []
+    averaged_files = []
+
+    unique_names = set(known_names)
+    for name in unique_names:
+        indices = [i for i, n in enumerate(known_names) if n == name]
+        person_encs = [known_encodings[i] for i in indices]
+        mean_enc = np.mean(person_encs, axis=0) 
+        averaged_encodings.append(mean_enc)
+        averaged_names.append(name)
+        averaged_files.append(known_files[indices[0]])
+
+    print(f"Averaged embeddings for {len(unique_names)} people.")
+    return averaged_encodings, averaged_names, averaged_files
+
+
 def init_face_db(known_dir="known_faces", db_path="face_db", collection_name="face_embeddings"):
-    """Initialize ChromaDB"""
+    """ Initialize the face database using ChromaDB """
     chroma_client = chromadb.PersistentClient(path=db_path)
     collection = chroma_client.get_or_create_collection(name=collection_name)
 
@@ -23,13 +42,13 @@ def init_face_db(known_dir="known_faces", db_path="face_db", collection_name="fa
         collection, known_dir, known_encodings, known_names, known_files
     )
 
+    known_encodings, known_names, known_files = average_person_embeddings(known_encodings, known_names, known_files)
     print(f"Total known encodings: {len(known_encodings)}")
     return known_encodings, known_names, known_files
 
 
-# Load known encodings
 def load_existing_encodings(collection):
-    """Load known encodings and metadata from ChromaDB."""
+    """ Load known encodings and metadata from ChromaDB """
     known_encodings, known_names, known_files = [], [], []
     data = collection.get(include=["embeddings", "metadatas"])
 
@@ -45,9 +64,8 @@ def load_existing_encodings(collection):
     return known_encodings, known_names, known_files
 
 
-# Add new images to DB
 def add_new_faces_to_db(collection, known_dir, known_encodings, known_names, known_files):
-    """Add new faces from known_faces directory to the database."""
+    """ Add new face embeddings from known_faces directory to the ChromaDB """
     ids, embeddings, metadatas = [], [], []
     existing_ids = set(collection.get()["ids"]) if collection.count() > 0 else set()
 
@@ -89,9 +107,8 @@ def add_new_faces_to_db(collection, known_dir, known_encodings, known_names, kno
     return known_encodings, known_names, known_files
 
 
-# Remove deleted images from DB
 def remove_deleted_faces_from_db(collection, known_dir, known_encodings, known_names, known_files):
-    """Remove deleted images from the database and refresh local lists."""
+    """ Remove deleted images from ChromaDB """
     existing_ids = set(collection.get()["ids"]) if collection.count() > 0 else set()
     current_ids = set()
 
@@ -117,9 +134,8 @@ def remove_deleted_faces_from_db(collection, known_dir, known_encodings, known_n
     return known_encodings, known_names, known_files
 
 
-# Detection function
 def recognize_faces(image, known_encodings, known_names, known_files, threshold=THRESHOLD, for_gradio=False):
-    """Core logic for face detection and recognition"""
+    """ Detect and recognize faces in images """
    
     # Convert for recognition
     if for_gradio:
@@ -164,8 +180,8 @@ def recognize_faces(image, known_encodings, known_names, known_files, threshold=
     return image, recognized_info
 
 
-# OpenVC wrapper
 def recognize_faces_opencv(test_image_path, known_encodings, known_names, known_files):
+    """ Recognize faces using OpenCV window display """
     start_time = time.time()
     image = face_recognition.load_image_file(test_image_path)
     image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
@@ -179,21 +195,22 @@ def recognize_faces_opencv(test_image_path, known_encodings, known_names, known_
     cv2.destroyAllWindows()
 
 
-# Gradio wrapper
 def recognize_faces_gradio(image, threshold, known_encodings, known_names, known_files):
+    """ Recognize faces for Gradio interface """
     start_time = time.time()
     annotated_image, recognized_info = recognize_faces(image, known_encodings, known_names, known_files, threshold, for_gradio=True)
     runtime = time.time() - start_time
     recognized_text = "\n".join(recognized_info) + f"\nRuntime: {runtime:.2f} seconds"
     return annotated_image, recognized_text
 
-# Launch Gradio UI
+
 def launch_gradio_ui(known_encodings, known_names, known_files):
+    """ Launch Gradio interface """
     iface = gr.Interface(
         fn=lambda img, th: recognize_faces_gradio(img, th, known_encodings, known_names, known_files),
         inputs=[
             gr.Image(type="numpy"),
-            gr.Slider(0.42, 1.0, value=THRESHOLD, step=0.01, label="Recognition Threshold") 
+            gr.Slider(0.4, 1.0, value=THRESHOLD, step=0.01, label="Recognition Threshold") 
         ],
         outputs=[
             gr.Image(type="numpy"),
