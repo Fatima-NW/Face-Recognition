@@ -134,16 +134,25 @@ def recognize_faces(image, known_encodings, known_names, known_files, threshold=
             best_distance = distances[best_idx]
             name = known_names[best_idx] if best_distance < threshold else "Unknown"
             matched_file = known_files[best_idx]
+            confidence = 1 - best_distance
             recognized_info.append(f"{name} (distance={best_distance:.2f}, matched file={matched_file})")
         else:
             name = "Unknown"
             recognized_info.append("No known faces to compare")
 
         # Draw rectangles and labels
-        cv2.rectangle(image, (left, top), (right, bottom), (0, 255, 0), 2)
-        text_y = bottom + 25
-        cv2.rectangle(image, (left, bottom), (right, text_y), (0, 255, 0), cv2.FILLED)
-        cv2.putText(image, name, (left + 5, bottom + 18), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+        colour = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
+        cv2.rectangle(image, (left, top), (right, bottom), colour, 2)
+
+        if name != "Unknown":
+            label_text = f"{name} ({confidence*100:.1f}%)"
+        else:
+            label_text = name
+        label_size, _ = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+        label_y = top - 10 if top - 10 > 10 else top + 10
+
+        cv2.rectangle(image, (left, label_y - label_size[1]-4), (left + label_size[0] + 4, label_y + 4),  colour, cv2.FILLED)
+        cv2.putText(image, label_text, (left + 2, label_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
     return image, recognized_info
 
