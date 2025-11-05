@@ -7,7 +7,7 @@ import time
 import gradio as gr
 
 
-THRESHOLD = 0.45
+THRESHOLD = 0.42
 
 
 def average_person_embeddings(known_encodings, known_names, known_files):
@@ -25,7 +25,7 @@ def average_person_embeddings(known_encodings, known_names, known_files):
         averaged_names.append(name)
         averaged_files.append(known_files[indices[0]])
 
-    print(f"Averaged embeddings for {len(unique_names)} people.")
+    print(f"Averaged encodings for {len(unique_names)} unique people")
     return averaged_encodings, averaged_names, averaged_files
 
 
@@ -42,9 +42,9 @@ def init_face_db(known_dir="known_faces", db_path="face_db", collection_name="fa
         collection, known_dir, known_encodings, known_names, known_files
     )
 
-    known_encodings, known_names, known_files = average_person_embeddings(known_encodings, known_names, known_files)
     print(f"Total known encodings: {len(known_encodings)}")
-    return known_encodings, known_names, known_files
+    known_encodings, known_names, known_files = average_person_embeddings(known_encodings, known_names, known_files)
+    return known_encodings, known_names
 
 
 def load_existing_encodings(collection):
@@ -102,7 +102,7 @@ def add_new_faces_to_db(collection, known_dir, known_encodings, known_names, kno
 
     if embeddings:
         collection.add(ids=ids, embeddings=embeddings, metadatas=metadatas)
-        print(f"Stored {len(embeddings)} new encodings in ChromaDB")
+        print(f"Stored {len(embeddings)} new encodings in DB")
 
     return known_encodings, known_names, known_files
 
@@ -124,7 +124,7 @@ def remove_deleted_faces_from_db(collection, known_dir, known_encodings, known_n
     to_delete = list(existing_ids - current_ids)
     if to_delete:
         collection.delete(ids=to_delete)
-        print(f"Removed {len(to_delete)} embeddings from DB")
+        print(f"Removed {len(to_delete)} encodings from DB")
 
         data = collection.get(include=["embeddings", "metadatas"])
         known_encodings = [np.array(e) for e in data["embeddings"]]
@@ -134,7 +134,7 @@ def remove_deleted_faces_from_db(collection, known_dir, known_encodings, known_n
     return known_encodings, known_names, known_files
 
 
-def recognize_faces(image, known_encodings, known_names, known_files, threshold=THRESHOLD, for_gradio=False):
+def recognize_faces(image, known_encodings, known_names, threshold=THRESHOLD, for_gradio=False):
     """ Detect and recognize faces in images """
    
     # Convert for recognition
@@ -156,9 +156,8 @@ def recognize_faces(image, known_encodings, known_names, known_files, threshold=
             best_idx = np.argmin(distances)
             best_distance = distances[best_idx]
             name = known_names[best_idx] if best_distance < threshold else "Unknown"
-            matched_file = known_files[best_idx]
             confidence = 1 - best_distance
-            recognized_info.append(f"{name} (distance={best_distance:.2f}, matched file={matched_file})")
+            recognized_info.append(f"{name} (distance={best_distance:.2f})")
         else:
             name = "Unknown"
             recognized_info.append("No known faces to compare")
@@ -180,12 +179,12 @@ def recognize_faces(image, known_encodings, known_names, known_files, threshold=
     return image, recognized_info
 
 
-def recognize_faces_opencv(test_image_path, known_encodings, known_names, known_files):
+def recognize_faces_opencv(test_image_path, known_encodings, known_names):
     """ Recognize faces using OpenCV window display """
     start_time = time.time()
     image = face_recognition.load_image_file(test_image_path)
     image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-    annotated_image, recognized_info = recognize_faces(image_bgr, known_encodings, known_names, known_files)
+    annotated_image, recognized_info = recognize_faces(image_bgr, known_encodings, known_names)
     runtime = time.time() - start_time
     for info in recognized_info:
         print(info)
@@ -195,19 +194,19 @@ def recognize_faces_opencv(test_image_path, known_encodings, known_names, known_
     cv2.destroyAllWindows()
 
 
-def recognize_faces_gradio(image, threshold, known_encodings, known_names, known_files):
+def recognize_faces_gradio(image, threshold, known_encodings, known_names):
     """ Recognize faces for Gradio interface """
     start_time = time.time()
-    annotated_image, recognized_info = recognize_faces(image, known_encodings, known_names, known_files, threshold, for_gradio=True)
+    annotated_image, recognized_info = recognize_faces(image, known_encodings, known_names, threshold, for_gradio=True)
     runtime = time.time() - start_time
     recognized_text = "\n".join(recognized_info) + f"\nRuntime: {runtime:.2f} seconds"
     return annotated_image, recognized_text
 
 
-def launch_gradio_ui(known_encodings, known_names, known_files):
+def launch_gradio_ui(known_encodings, known_names):
     """ Launch Gradio interface """
     iface = gr.Interface(
-        fn=lambda img, th: recognize_faces_gradio(img, th, known_encodings, known_names, known_files),
+        fn=lambda img, th: recognize_faces_gradio(img, th, known_encodings, known_names),
         inputs=[
             gr.Image(type="numpy"),
             gr.Slider(0.4, 1.0, value=THRESHOLD, step=0.01, label="Recognition Threshold") 
@@ -222,11 +221,11 @@ def launch_gradio_ui(known_encodings, known_names, known_files):
 
 
 if __name__ == "__main__":
-    known_encodings, known_names, known_files = init_face_db(known_dir="known_faces")
+    known_encodings, known_names = init_face_db(known_dir="known_faces")
 
     # OpenCV test
     test_image_path = "test_images/group2.jpg"
-    recognize_faces_opencv(test_image_path, known_encodings, known_names, known_files)
+    recognize_faces_opencv(test_image_path, known_encodings, known_names)
 
     # Launch Gradio UI
-    launch_gradio_ui(known_encodings, known_names, known_files)
+    launch_gradio_ui(known_encodings, known_names)
