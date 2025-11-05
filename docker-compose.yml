@@ -1,0 +1,16 @@
+services:
+  face-recognition:
+    build: .
+    container_name: face_recognition_app
+    ports:
+      - "7860:7860"
+    volumes:
+      - ./known_faces:/app/known_faces
+      - ./face_db:/app/face_db
+      - ./test_images:/app/test_images
+    environment:
+      - THRESHOLD=0.45
+      - DB_PATH=/app/face_db
+      - KNOWN_DIR=/app/known_faces
+    command: python main.py
+    restart: unless-stopped

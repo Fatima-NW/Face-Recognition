@@ -1,0 +1,10 @@
+venv/
+face_db/
+.gradio/
+.git/
+*.pyc
+*.pyo
+*.pyd
+.vscode/
+.idea/
+
