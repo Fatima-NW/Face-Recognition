@@ -5,9 +5,7 @@ services:
     ports:
       - "7860:7860"
     volumes:
-      - ./known_faces:/app/known_faces
-      - ./face_db:/app/face_db
-      - ./test_images:/app/test_images
+      - .:/app
     environment:
       - THRESHOLD=0.45
       - DB_PATH=/app/face_db

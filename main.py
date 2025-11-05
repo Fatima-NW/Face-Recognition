@@ -189,9 +189,13 @@ def recognize_faces_opencv(test_image_path, known_encodings, known_names):
     for info in recognized_info:
         print(info)
     print(f"Runtime: {runtime:.2f} seconds")
-    cv2.imshow("Face Recognition", annotated_image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    
+    base_name = os.path.basename(test_image_path)              
+    name, ext = os.path.splitext(base_name)                  
+    os.makedirs("output", exist_ok=True)
+    output_path = os.path.join("output", f"{name}-output.png")
+    cv2.imwrite(output_path, annotated_image)
+    print(f"Annotated image saved to {output_path}")
 
 
 def recognize_faces_gradio(image, threshold, known_encodings, known_names):
@@ -217,7 +221,7 @@ def launch_gradio_ui(known_encodings, known_names):
         ],
         title="Face Recognition App"
     )
-    iface.launch()
+    iface.launch(server_name="0.0.0.0", server_port=7860)
 
 
 if __name__ == "__main__":
