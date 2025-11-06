@@ -3,12 +3,12 @@ import cv2
 import os
 import numpy as np
 import chromadb
+from decouple import config
 import time
 import gradio as gr
 
 
-THRESHOLD = 0.42
-
+THRESHOLD = float(config("THRESHOLD", default=0.42))
 
 def average_person_embeddings(known_encodings, known_names, known_files):
     """ Compute average embeddings for each person """
@@ -228,7 +228,8 @@ if __name__ == "__main__":
     known_encodings, known_names = init_face_db(known_dir="known_faces")
 
     # OpenCV test
-    test_image_path = "test_images/group2.jpg"
+    TEST_IMAGE = config("TEST_IMAGE")
+    test_image_path = f"test_images/{TEST_IMAGE}"
     recognize_faces_opencv(test_image_path, known_encodings, known_names)
 
     # Launch Gradio UI
