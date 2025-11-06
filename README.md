@@ -1,6 +1,6 @@
 # Face Recognition App
 
-A python-based **face recognition** application that uses face_recognition, OpenCV, and ChromaDB for efficient face detection, encoding, and recognition — with both CLI (OpenCV) and Gradio web UI interfaces.
+A python-based **face recognition** application that uses face_recognition, OpenCV, and ChromaDB for efficient face detection, encoding, and recognition — supporting both automated (OpenCV-based) and interactive (Gradio) modes.
 
 
 ## Features
@@ -17,10 +17,8 @@ A python-based **face recognition** application that uses face_recognition, Open
 
 - **Similarity Metrics**: Calculates similarity between face encodings using **Euclidean Distance**. 
 
-- **Configurable Threshold**: Tune the similarity threshold (`THRESHOLD = 0.42` by default) to control recognition confidence.
-
 - **Dual Interface**:  
-  - **OpenCV Mode:** Runs recognition on sample images directly.
+  - **OpenCV Mode:** Runs recognition on a sample image and saves result to `output/`.
   - **Gradio UI:** Interactive browser interface for real-time testing.
 
 - **Performance Tracking**: Logs the total runtime for each recognition pass to help monitor system performance.
@@ -30,14 +28,14 @@ A python-based **face recognition** application that uses face_recognition, Open
 
 | Library | Purpose |
 |----------|----------|
-| **Python** | Core programming language. |
-| **OpenCV** | Image loading, display, and basic processing. |
-| **face_recognition** | Face detection and encoding (built on dlib). |
-| **dlib** | Deep learning–based facial feature extraction engine used internally by face_recognition. |
-| **NumPy** | Numerical operations and vector similarity calculations. |
-| **ChromaDB** | Local vector database to store and query embeddings efficiently. |
-| **Gradio** | Web interface for live testing and visualization. |
-| **time** | Performance measurement utilities. |
+| **Python** | Core programming language |
+| **OpenCV** | Image loading, display, and basic processing |
+| **face_recognition** | Face detection and encoding (built on dlib) |
+| **dlib** | Deep learning–based facial feature extraction engine used internally by face_recognition |
+| **NumPy** | Numerical operations and vector similarity calculations |
+| **ChromaDB** | Local vector database to store and query embeddings efficiently |
+| **Gradio** | Web interface for live testing and visualization |
+| **time** | Performance measurement utilities |
 
 
 ## Workflow
@@ -52,7 +50,7 @@ A python-based **face recognition** application that uses face_recognition, Open
 
 3. **Recognition Process**              
    - Detects and encodes faces in a new image.  
-   - Compares each encoding against all known embeddings using Euclidean distance.  
+   - Compares each encoding against all known embeddings using **Euclidean distance**.  
    - Matches faces with distance below the defined threshold.
 
 4. **Runtime Logging**              
@@ -65,59 +63,119 @@ A python-based **face recognition** application that uses face_recognition, Open
 face-detection-app/
 │
 ├── main.py                 # Core script
+├── face_db/                # ChromaDB persistent database files
 ├── known_faces/            # Folder containing known people (subfolders by name)
-│   ├── person1/
+│   ├── Name1/
 │   │   ├── img1.jpg
 │   │   ├── img2.png
-│   └── person2/
+│   └── Name2/
 │       └── photo.jpg
 ├── test_images/            # Test images for recognition
 │   ├── test1.jpeg
 │   └── test2.jpg
-├── face_db/                # ChromaDB persistent database files
+├── output/                 # Automatically stores annotated images from OpenCV
+├── venv/                   # Virtual environment
+├── Dockerfile              # Docker
+├── docker-compose.yml 
+├── .dockerignore 
+├── .env                    # Configurable runtime parameters
+├── .gitignore
 ├── requirements.txt        # Dependencies
 └── README.md
 ```
 
-## Installation
+## Setup and Usage
 
 1. **Clone the repository**
    ```bash
    git clone https://github.com/Fatima-NW/Face-Recognition.git
    ```
 
-2. **Create a virtual environment**
+2. **Environment Configuration**                
+   You can adjust these values without modifying the code.
    ```bash
-   python -m venv venv
-   source venv/bin/activate   # On Windows use: venv\Scripts\activate
+   THRESHOLD=0.42
+   TEST_IMAGE=group.png     # Place this image in test_images/ folder
    ```
 
-3. **Install dependencies:**
+Next, choose either option A or B depending on whether you want to run the app manually (classic Python setup) or inside Docker.
+
+### A) Classic Python Setup
+
+3. **Create a virtual environment**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate
+   ```
+
+4. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
 
-## Usage
-
-In your virtual environment run:
+5. **Run the Project**
 
    ```bash
    python main.py
    ```
 
-The script will:
-- Initialize and sync the ChromaDB face database.
-- Recognize faces in a sample test image using OpenCV.
-- Launch an interactive Gradio web interface.
+   The script will:
+   - Initialize and sync the ChromaDB face database.
+   - Recognize faces in a sample test image using OpenCV.
+   - Launch an interactive Gradio web interface.
+
+
+### B) Docker Setup
+
+3. **Build and start the container**
+   ```bash
+   sudo docker compose up --build
+
+   #After the first build, you can start containers normally without rebuilding:
+   sudo docker compose up
+   ```
+
+4. **Access the web UI**                             
+   Visit: http://127.0.0.1:7860/
+
+5. **Check Logs (optional)**
+   ```bash
+   sudo docker logs face_recognition_app
+   ```
+
+6. **Stop container**
+   ```bash
+   sudo docker compose down
+   ```
 
 
 ## Interfaces
 
 ### OpenCV Mode     
-Displays a test image (test_images/group2.jpg) annotated with recognized faces.
+- Runs automatically at startup **if a test image is provided** in the `.env` file.  
+- Displays results in the console, including:
+  - Detected person names  
+  - Euclidean distance (similarity) values  
+  - Total recognition runtime  
+- Saves the annotated image in the `output/` directory:  
+  - **Green boxes** for recognized faces 
+  - **Red boxes** for unknown faces  
+  - **Name + confidence score** above each detected face  
 
 ### Gradio Mode    
-Launches a web UI at http://127.0.0.1:7860, where you can:
-- Upload an image.
-- Adjust recognition threshold.
-- View detected faces, labels, and confidence scores in real time.
+- Launches an interactive web UI at [http://127.0.0.1:7860](http://127.0.0.1:7860).  
+- Allows users to:
+  - Upload an image  
+  - Adjust recognition threshold dynamically  
+- Displays the **same annotated results** as OpenCV (green/red boxes with names and confidence scores).  
+- Also shows the recognition results below the image with names, distances, and runtime.
+
+
+## Notes
+
+- Ensure the `known_faces/` directory has subfolders named after each person.
+- Set the threshold value and provide test image (also place it in the test_images folder) in .env file before running.
+- A **lower distance value** indicates a **stronger match** (higher confidence), since similarity is calculated using Euclidean distance.
+- Use high-quality, front-facing images for best results.
+- Logs from the OpenCV mode appear in the console output.
+
