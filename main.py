@@ -227,10 +227,16 @@ def launch_gradio_ui(known_encodings, known_names):
 if __name__ == "__main__":
     known_encodings, known_names = init_face_db(known_dir="known_faces")
 
-    # OpenCV test
-    TEST_IMAGE = config("TEST_IMAGE")
-    test_image_path = f"test_images/{TEST_IMAGE}"
-    recognize_faces_opencv(test_image_path, known_encodings, known_names)
+    # Optional OpenCV test
+    TEST_IMAGE = config("TEST_IMAGE", default=None)
+    if TEST_IMAGE:
+        test_image_path = f"test_images/{TEST_IMAGE}"
+        if os.path.exists(test_image_path):
+            recognize_faces_opencv(test_image_path, known_encodings, known_names)
+        else:
+            print(f"Test image not found. Skipping OpenCV test.")
+    else:
+        print("No Test image specified. Skipping OpenCV test.")
 
     # Launch Gradio UI
     launch_gradio_ui(known_encodings, known_names)
