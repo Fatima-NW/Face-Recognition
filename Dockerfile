@@ -28,5 +28,8 @@ COPY . .
 # Expose Gradio port
 EXPOSE 7860
 
+# Environment variables
+ENV PYTHONUNBUFFERED=1
+
 # Run the app
 CMD ["python", "main.py"]
